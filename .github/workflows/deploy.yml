@@ -3,7 +3,7 @@ name: Deploy to GitHub Pages
 on:
   # Jalankan workflow setiap kali ada push ke branch `main`
   push:
-    branches: [ main ]
+    branches: [ "main" ]
   # Memungkinkan Anda menjalankan workflow ini secara manual dari tab Actions
   workflow_dispatch:
 
@@ -13,11 +13,14 @@ permissions:
   pages: write
   id-token: write
 
+# Izinkan hanya satu deployment berjalan pada satu waktu
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
 jobs:
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+  # Pekerjaan untuk membangun (menyiapkan) situs
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -29,6 +32,16 @@ jobs:
         with:
           # Unggah seluruh isi repositori
           path: '.'
+
+  # Pekerjaan untuk mendeploy situs
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build # Jalankan pekerjaan ini HANYA setelah pekerjaan 'build' selesai
+    steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
