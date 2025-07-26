@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="id" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dasbor Audit Keamanan Informasi STMKG</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Calm Neutrals -->
+    <!-- Application Structure Plan: The SPA is designed as a top-down dashboard. It starts with a high-level executive summary (key charts on compliance and risk), allowing immediate understanding of the overall security posture. The user can then scroll or use the navigation to progressively dive deeper into specific areas: 1. Compliance Analysis (a breakdown of ISO control domains), 2. Technical Vulnerabilities (concrete findings from pentesting), and 3. A detailed, filterable Risk Register with mitigation measures. This structure was chosen to cater to different audiences: executives can get a quick overview from the top, while technical staff can explore the detailed sections. This non-linear, layered approach enhances usability and comprehension far more than a traditional report structure. -->
+    <!-- Visualization & Content Choices: 
+        - Overall Compliance: Report Info -> Count of controls by status. Goal -> Inform. Viz -> Donut Chart (Chart.js) for clear part-to-whole relationship. Interaction -> Hover for details.
+        - Risk Severity: Report Info -> Count of risks by level. Goal -> Inform. Viz -> Bar Chart (Chart.js) for easy comparison of categories. Interaction -> Hover for details.
+        - Technical Vulnerabilities: Report Info -> Specific technical findings. Goal -> Organize & Inform. Viz -> Card layout (HTML/Tailwind) to present structured info cleanly. Interaction -> Filter by risk level.
+        - Risk Register: Report Info -> Full risk register table. Goal -> Organize & Explore. Viz -> Interactive Table (HTML/JS) with expandable rows. Interaction -> Filtering by risk level/category and clicking to expand details. Justification -> This is the most efficient way to handle dense, tabular data, allowing users to focus on critical items without being overwhelmed.
+        - Library/Method: Chart.js for all charts on Canvas. HTML/Tailwind for all layouts and diagrams. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #F9FAFB; /* gray-50 */
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            height: 350px;
+            max-height: 400px;
+        }
+        @media (max-width: 768px) {
+            .chart-container {
+                height: 300px;
+            }
+        }
+        .risk-badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .risk-ekstrem { background-color: #FEE2E2; color: #B91C1C; }
+        .risk-tinggi { background-color: #FEF3C7; color: #B45309; }
+        .risk-sedang { background-color: #ECFCCB; color: #4D7C0F; }
+        .details-row { display: none; }
+        .details-row.show { display: table-row; }
+        .nav-link {
+            padding: 8px 16px;
+            border-radius: 8px;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        .nav-link:hover {
+            background-color: #E5E7EB; /* gray-200 */
+        }
+        .nav-link.active {
+            background-color: #3B82F6; /* blue-500 */
+            color: white;
+        }
+    </style>
+</head>
+<body class="text-gray-800">
+
+    <!-- Header & Navigation -->
+    <header class="bg-white/80 backdrop-blur-lg sticky top-0 z-50 shadow-sm">
+        <nav class="container mx-auto px-4 sm:px-6 lg:px-8 py-3 flex justify-between items-center">
+            <h1 class="text-xl md:text-2xl font-bold text-blue-600">Audit Keamanan Informasi STMKG</h1>
+            <div class="hidden md:flex items-center space-x-2">
+                <a href="#dashboard" class="nav-link">Dasbor</a>
+                <a href="#analisis-kepatuhan" class="nav-link">Analisis Kepatuhan</a>
+                <a href="#temuan-teknis" class="nav-link">Temuan Teknis</a>
+                <a href="#risk-register" class="nav-link">Risk Register</a>
+            </div>
+            <div class="md:hidden">
+                <select id="mobile-nav" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                    <option value="#dashboard">Dasbor</option>
+                    <option value="#analisis-kepatuhan">Analisis Kepatuhan</option>
+                    <option value="#temuan-teknis">Temuan Teknis</option>
+                    <option value="#risk-register">Risk Register</option>
+                </select>
+            </div>
+        </nav>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
+
+        <!-- Section 1: Executive Summary / Dashboard -->
+        <section id="dashboard" class="mb-16 scroll-mt-24">
+            <h2 class="text-3xl font-bold text-center mb-2">Dasbor Eksekutif</h2>
+            <p class="text-center text-gray-600 max-w-3xl mx-auto mb-12">
+                Ringkasan tingkat tinggi dari postur keamanan informasi STMKG berdasarkan asesmen kepatuhan ISO/IEC 27001:2022 dan uji teknis. Dasbor ini menyoroti area keberhasilan dan celah keamanan yang paling signifikan.
+            </p>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div class="bg-white p-6 rounded-xl shadow-md">
+                    <h3 class="text-xl font-semibold mb-4 text-center">Status Kepatuhan Kontrol ISO/IEC 27001</h3>
+                    <div class="chart-container mx-auto max-w-sm">
+                        <canvas id="complianceChart"></canvas>
+                    </div>
+                </div>
+                <div class="bg-white p-6 rounded-xl shadow-md">
+                    <h3 class="text-xl font-semibold mb-4 text-center">Distribusi Tingkat Risiko</h3>
+                     <div class="chart-container mx-auto max-w-lg">
+                        <canvas id="riskLevelChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 2: Compliance Deep Dive -->
+        <section id="analisis-kepatuhan" class="mb-16 scroll-mt-24">
+            <h2 class="text-3xl font-bold text-center mb-2">Analisis Kesenjangan Kepatuhan</h2>
+            <p class="text-center text-gray-600 max-w-3xl mx-auto mb-12">
+                Bagian ini menyajikan analisis mendalam terhadap kesenjangan (*gap*) antara praktik keamanan informasi STMKG saat ini dengan standar ISO/IEC 27001:2022. Visualisasi di bawah ini memetakan temuan berdasarkan empat domain kontrol utama.
+            </p>
+            <div class="bg-white p-6 rounded-xl shadow-md">
+                 <h3 class="text-xl font-semibold mb-4 text-center">Kepatuhan per Domain Kontrol ISO/IEC 27001</h3>
+                 <div class="chart-container mx-auto max-w-4xl">
+                    <canvas id="domainComplianceChart"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 3: Technical Vulnerability Findings -->
+        <section id="temuan-teknis" class="mb-16 scroll-mt-24">
+            <h2 class="text-3xl font-bold text-center mb-2">Temuan Kerentanan Teknis</h2>
+            <p class="text-center text-gray-600 max-w-3xl mx-auto mb-12">
+                Berikut adalah temuan-temuan kerentanan konkret yang diidentifikasi melalui pemindaian dan uji penetrasi pada infrastruktur jaringan dan aplikasi web STMKG. Setiap temuan dipetakan ke kategori OWASP Top 10 dan kontrol ISO yang relevan.
+            </p>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div class="bg-white p-6 rounded-xl shadow-md border-l-4 border-red-500">
+                    <h3 class="font-bold text-lg mb-2">Potensi Penggunaan Plugin Bajakan</h3>
+                    <span class="risk-badge risk-ekstrem">Ekstrem</span>
+                    <p class="mt-3 text-gray-600">Berkas inti Elementor Pro tidak ditemukan, mengindikasikan penggunaan versi "nulled" yang berisiko tinggi mengandung malware.</p>
+                    <p class="mt-2 text-sm font-semibold text-gray-500">ISO: A.8.25, A.8.19</p>
+                </div>
+                <div class="bg-white p-6 rounded-xl shadow-md border-l-4 border-amber-500">
+                    <h3 class="font-bold text-lg mb-2">Ketiadaan HTTP Security Headers</h3>
+                    <span class="risk-badge risk-tinggi">Tinggi</span>
+                    <p class="mt-3 text-gray-600">Header krusial seperti Content-Security-Policy (CSP) dan HSTS tidak ada, membuat situs rentan terhadap serangan XSS.</p>
+                     <p class="mt-2 text-sm font-semibold text-gray-500">ISO: A.8.9, A.8.28</p>
+                </div>
+                 <div class="bg-white p-6 rounded-xl shadow-md border-l-4 border-amber-500">
+                    <h3 class="font-bold text-lg mb-2">Pengungkapan Informasi Versi</h3>
+                    <span class="risk-badge risk-tinggi">Tinggi</span>
+                    <p class="mt-3 text-gray-600">Versi spesifik WordPress dan plugin terlihat, memudahkan penyerang mencari eksploitasi yang relevan.</p>
+                     <p class="mt-2 text-sm font-semibold text-gray-500">ISO: A.8.9, A.8.26</p>
+                </div>
+                <div class="bg-white p-6 rounded-xl shadow-md border-l-4 border-lime-600">
+                    <h3 class="font-bold text-lg mb-2">Komponen dengan Kerentanan</h3>
+                    <span class="risk-badge risk-sedang">Sedang</span>
+                    <p class="mt-3 text-gray-600">Penggunaan jQuery v3.6.0 yang diketahui memiliki kerentanan Cross-Site Scripting (XSS).</p>
+                    <p class="mt-2 text-sm font-semibold text-gray-500">ISO: A.8.8</p>
+                </div>
+                <div class="bg-white p-6 rounded-xl shadow-md border-l-4 border-lime-600">
+                    <h3 class="font-bold text-lg mb-2">Miskonfigurasi Server</h3>
+                    <span class="risk-badge risk-sedang">Sedang</span>
+                    <p class="mt-3 text-gray-600">Server memberikan respons yang informatif (403 Forbidden) untuk direktori yang ada, mengonfirmasi keberadaan jalur.</p>
+                    <p class="mt-2 text-sm font-semibold text-gray-500">ISO: A.8.9, A.8.21</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 4: Interactive Risk Register -->
+        <section id="risk-register" class="scroll-mt-24">
+            <h2 class="text-3xl font-bold text-center mb-2">Register Risiko Interaktif</h2>
+            <p class="text-center text-gray-600 max-w-3xl mx-auto mb-12">
+                Jelajahi daftar lengkap risiko yang teridentifikasi. Gunakan filter untuk menyortir berdasarkan tingkat risiko atau kategori. Klik pada setiap baris untuk melihat bukti temuan dan rekomendasi mitigasi secara detail.
+            </p>
+            <div class="bg-white p-6 rounded-xl shadow-md">
+                <!-- Filters -->
+                <div class="flex flex-col md:flex-row gap-4 mb-6">
+                    <div class="flex-1">
+                        <label for="filter-risk-level" class="block text-sm font-medium text-gray-700">Filter Tingkat Risiko</label>
+                        <select id="filter-risk-level" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md">
+                            <option value="all">Semua Tingkat</option>
+                            <option value="Ekstrem">Ekstrem</option>
+                            <option value="Tinggi">Tinggi</option>
+                            <option value="Sedang">Sedang</option>
+                        </select>
+                    </div>
+                    <div class="flex-1">
+                        <label for="filter-risk-category" class="block text-sm font-medium text-gray-700">Filter Kategori Risiko</label>
+                        <select id="filter-risk-category" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md">
+                            <option value="all">Semua Kategori</option>
+                            <option value="Teknologi">Teknologi</option>
+                            <option value="Organisasi">Organisasi</option>
+                            <option value="Manusia">Manusia</option>
+                            <option value="Fisik & Manusia">Fisik & Manusia</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Risk Table -->
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Deskripsi Risiko</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Kategori</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tingkat</th>
+                            </tr>
+                        </thead>
+                        <tbody id="risk-table-body" class="bg-white divide-y divide-gray-200">
+                            <!-- Rows will be injected by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <footer class="bg-white border-t mt-16">
+        <div class="container mx-auto py-6 px-4 sm:px-6 lg:px-8 text-center text-gray-500">
+            <p>&copy; 2024 Analisis Keamanan Informasi STMKG. Dibuat sebagai visualisasi interaktif dari temuan penelitian.</p>
+        </div>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            
+            const riskRegisterData = [
+                { id: 'RISK-001', description: 'Adanya indikasi implementasi komponen plugin tidak berlisensi (dikenal dengan istilah nulled) pada domain situs web stmkg.ac.id...', category: 'Teknologi', level: 'Ekstrem', evidence: 'Analisis log menunjukkan respons 404 Not Found untuk berkas inti dari plugin "Elementor Pro"...', mitigation: '1. Segera lakukan analisis forensik...<br>2. Hapus semua plugin dan tema...<br>3. Buat dan terapkan Standar Pengembangan Aplikasi Aman.' },
+                { id: 'RISK-002', description: 'Tidak adanya Rencana Respons Insiden (IRP) yang formal dan teruji...', category: 'Organisasi', level: 'Tinggi', evidence: 'Hasil kuesioner dan wawancara dengan Tim TI mengonfirmasi bahwa STMKG secara eksplisit "Tidak" memiliki dokumen IRP...', mitigation: '1. Kembangkan IRP formal...<br>2. Bentuk Tim Respons Insiden...<br>3. Lakukan simulasi respons insiden...' },
+                { id: 'RISK-003', description: 'Tidak adanya Rencana Pemulihan Bencana (DRP) yang teruji untuk sistem TIK kritikal...', category: 'Organisasi', level: 'Tinggi', evidence: 'Hasil kuesioner dan wawancara dengan Tim TI mengonfirmasi bahwa STMKG "Tidak" memiliki DRP...', mitigation: '1. Susun DRP untuk sistem TIK kritikal...<br>2. Identifikasi RTO dan RPO...<br>3. Jadwalkan pengujian DRP secara rutin...' },
+                { id: 'RISK-004', description: 'Proses manajemen kerentanan dan pengerasan sistem tidak sistematis...', category: 'Teknologi', level: 'Tinggi', evidence: 'Tim TI menyatakan manajemen kerentanan "Sebagian" dan pengerasan sistem "Tidak" dilakukan...', mitigation: '1. Formalisasi proses manajemen kerentanan...<br>2. Terapkan HTTP security headers...<br>3. Buat dan terapkan Standar Pengerasan Server.' },
+                { id: 'RISK-005', description: 'Peninjauan hak akses pengguna tidak dilakukan secara berkala...', category: 'Organisasi', level: 'Tinggi', evidence: 'Tim TI melaporkan bahwa proses peninjauan hak akses pengguna secara berkala baru diimplementasikan "Sebagian"...', mitigation: '1. Tetapkan prosedur formal...<br>2. Terapkan prinsip least privilege...' },
+                { id: 'RISK-006', description: 'Sebagian besar pengguna, terutama taruna, tidak mengetahui prosedur pelaporan insiden keamanan...', category: 'Manusia', level: 'Tinggi', evidence: 'Hasil kuesioner kepada pengguna... menunjukkan jawaban "Tidak" atau "Sebagian"...', mitigation: '1. Luncurkan program kesadaran keamanan...<br>2. Buat materi dan saluran pelaporan insiden...' },
+                { id: 'RISK-007', description: 'Proses pencadangan (backup) data kritis dan pengujian pemulihannya (restore) tidak dilakukan secara konsisten...', category: 'Teknologi', level: 'Sedang', evidence: 'Tim TI menyatakan bahwa proses pencadangan data kritis... baru dilakukan "Sebagian"...', mitigation: '1. Jadwalkan pengujian pemulihan data...<br>2. Pastikan proses pencadangan mencakup semua data...<br>3. Integrasikan pengujian ini sebagai bagian dari DRP.' },
+                { id: 'RISK-008', description: 'Kebijakan "layar bersih" (clean screen) dan "meja bersih" (clear desk) tidak dipatuhi secara konsisten...', category: 'Fisik & Manusia', level: 'Sedang', evidence: 'Kuesioner pengguna menunjukkan bahwa beberapa responden... menjawab "Tidak" atau "Sebagian"...', mitigation: '1. Perkuat penegakan disiplin...<br>2. Sertakan pentingnya keamanan fisik...' },
+                { id: 'RISK-009', description: 'Tidak ada standar klasifikasi dan pelabelan informasi yang seragam...', category: 'Organisasi', level: 'Sedang', evidence: 'Hasil kuesioner menunjukkan praktik yang sangat bervariasi antar program studi...', mitigation: '1. Kembangkan dan implementasikan skema klasifikasi data tunggal...<br>2. Berikan pelatihan kepada staf dan dosen...' },
+                { id: 'RISK-010', description: 'Pengungkapan informasi versi spesifik dari komponen situs web...', category: 'Teknologi', level: 'Sedang', evidence: 'Analisis log proxy dan pemindaian aktif menunjukkan versi spesifik dari komponen... terlihat jelas...', mitigation: '1. Konfigurasikan server web untuk menyembunyikan versi perangkat lunak...<br>2. Lakukan audit konfigurasi secara berkala.' }
+            ];
+
+            // Chart Data
+            const complianceData = {
+                labels: ['Conformity', 'OFI', 'Non-Conformity Major', 'Non-Conformity Minor'],
+                values: [22, 20, 18, 12],
+                colors: ['#22C55E', '#FBBF24', '#F43F5E', '#F97316']
+            };
+
+            const riskLevelData = {
+                labels: ['Ekstrem', 'Tinggi', 'Sedang'],
+                values: [1, 5, 4],
+                colors: ['#DC2626', '#F97316', '#84CC16']
+            };
+
+            const domainComplianceData = {
+                labels: ['Kontrol Organisasi (A.5)', 'Kontrol Manusia (A.6)', 'Kontrol Fisik (A.7)', 'Kontrol Teknologi (A.8)'],
+                datasets: [
+                    { label: 'Conformity', data: [8, 3, 5, 6], backgroundColor: '#22C55E' },
+                    { label: 'OFI', data: [10, 2, 1, 7], backgroundColor: '#FBBF24' },
+                    { label: 'Non-Conformity Major', data: [6, 1, 0, 11], backgroundColor: '#F43F5E' },
+                    { label: 'Non-Conformity Minor', data: [4, 2, 1, 5], backgroundColor: '#F97316' }
+                ]
+            };
+
+            // Chart.js Instances
+            const ctxCompliance = document.getElementById('complianceChart').getContext('2d');
+            new Chart(ctxCompliance, {
+                type: 'doughnut',
+                data: {
+                    labels: complianceData.labels,
+                    datasets: [{
+                        data: complianceData.values,
+                        backgroundColor: complianceData.colors,
+                        borderColor: '#F9FAFB',
+                        borderWidth: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom' },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.parsed !== null) {
+                                        label += context.parsed + ' Kontrol';
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            const ctxRiskLevel = document.getElementById('riskLevelChart').getContext('2d');
+            new Chart(ctxRiskLevel, {
+                type: 'bar',
+                data: {
+                    labels: riskLevelData.labels,
+                    datasets: [{
+                        label: 'Jumlah Risiko',
+                        data: riskLevelData.values,
+                        backgroundColor: riskLevelData.colors,
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    indexAxis: 'y',
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        x: { beginAtZero: true, ticks: { precision: 0 } }
+                    }
+                }
+            });
+
+            const ctxDomainCompliance = document.getElementById('domainComplianceChart').getContext('2d');
+            new Chart(ctxDomainCompliance, {
+                type: 'bar',
+                data: domainComplianceData,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom' },
+                        tooltip: { mode: 'index', intersect: false }
+                    },
+                    scales: {
+                        x: { stacked: true },
+                        y: { stacked: true, beginAtZero: true }
+                    }
+                }
+            });
+
+            // Risk Register Table Logic
+            const tableBody = document.getElementById('risk-table-body');
+            const filterLevel = document.getElementById('filter-risk-level');
+            const filterCategory = document.getElementById('filter-risk-category');
+
+            function populateTable() {
+                tableBody.innerHTML = '';
+                const levelFilterValue = filterLevel.value;
+                const categoryFilterValue = filterCategory.value;
+
+                riskRegisterData
+                    .filter(item => (levelFilterValue === 'all' || item.level === levelFilterValue))
+                    .filter(item => (categoryFilterValue === 'all' || item.category === categoryFilterValue))
+                    .forEach(item => {
+                        const row = document.createElement('tr');
+                        row.className = 'cursor-pointer hover:bg-gray-50';
+                        row.dataset.riskId = item.id;
+
+                        let levelBadgeClass = '';
+                        if (item.level === 'Ekstrem') levelBadgeClass = 'risk-ekstrem';
+                        else if (item.level === 'Tinggi') levelBadgeClass = 'risk-tinggi';
+                        else if (item.level === 'Sedang') levelBadgeClass = 'risk-sedang';
+
+                        row.innerHTML = `
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${item.id}</td>
+                            <td class="px-6 py-4 whitespace-normal text-sm text-gray-700">${item.description}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${item.category}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><span class="risk-badge ${levelBadgeClass}">${item.level}</span></td>
+                        `;
+
+                        const detailsRow = document.createElement('tr');
+                        detailsRow.className = 'details-row bg-gray-50';
+                        detailsRow.dataset.detailsFor = item.id;
+                        detailsRow.innerHTML = `
+                            <td colspan="4" class="px-6 py-4">
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div>
+                                        <h4 class="font-semibold text-gray-800 mb-2">Bukti Temuan</h4>
+                                        <p class="text-sm text-gray-600">${item.evidence}</p>
+                                    </div>
+                                    <div>
+                                        <h4 class="font-semibold text-gray-800 mb-2">Rekomendasi Mitigasi</h4>
+                                        <div class="text-sm text-gray-600">${item.mitigation}</div>
+                                    </div>
+                                </div>
+                            </td>
+                        `;
+                        tableBody.appendChild(row);
+                        tableBody.appendChild(detailsRow);
+                    });
+            }
+            
+            tableBody.addEventListener('click', function(e) {
+                const row = e.target.closest('tr[data-risk-id]');
+                if (!row) return;
+
+                const riskId = row.dataset.riskId;
+                const detailsRow = document.querySelector(`tr[data-details-for="${riskId}"]`);
+                if (detailsRow) {
+                    detailsRow.classList.toggle('show');
+                }
+            });
+
+            filterLevel.addEventListener('change', populateTable);
+            filterCategory.addEventListener('change', populateTable);
+
+            // Initial population
+            populateTable();
+
+            // Navigation Logic
+            const sections = document.querySelectorAll('section');
+            const navLinks = document.querySelectorAll('.nav-link');
+            const mobileNav = document.getElementById('mobile-nav');
+
+            function updateActiveLink() {
+                let index = sections.length;
+                while(--index && window.scrollY + 100 < sections[index].offsetTop) {}
+                
+                navLinks.forEach((link) => link.classList.remove('active'));
+                if (navLinks[index]) {
+                   navLinks[index].classList.add('active');
+                }
+            }
+            
+            window.addEventListener('scroll', updateActiveLink);
+            updateActiveLink();
+
+            mobileNav.addEventListener('change', (e) => {
+                const targetId = e.target.value;
+                document.querySelector(targetId).scrollIntoView({ behavior: 'smooth' });
+            });
+        });
+    </script>
+</body>
+</html>
